@@ -1,15 +1,19 @@
-from scapy.all import *
-from scapy.all import TCP
-import os
-import time
 import hashlib
+import os
+from scapy.all import *
+from scapy.layers.inet import TCP
+
+import logging
+logger = logging.getLogger("scapy")
+logger.setLevel(logging.INFO)
 
 
 class StrCustomTerminatorField(StrField):
+    __slots__ = ["terminator", "consume_terminator"]
 
     def __init__(self, name, default, fmt="H", remain=0, terminator="\x00\x00", consume_terminator=True):
-        super().__init__(name, default, fmt, remain)
 
+        super().__init__(name, default, fmt, remain)
         self.terminator = terminator
         self.consume_terminator = consume_terminator
 
@@ -19,7 +23,6 @@ class StrCustomTerminatorField(StrField):
     def getfield(self, pkt, s):
         l = s.find(self.terminator)
         if l < 0:
-            # XXX terminator not found
             return "", s
         if self.consume_terminator:
             return s[l+len(self.terminator):], self.m2i(pkt, s[:l])
@@ -31,7 +34,7 @@ class StrCustomTerminatorField(StrField):
 
 class HintField(StrField):
     def __init__(self, name, default, fmt="H", remain=0):
-        super().__init__(name, default, fmt, remain)
+        super().__init__(self, name, default, fmt, remain)
 
     def i2len(self, pkt, i):
         return 0
@@ -41,12 +44,11 @@ class HintField(StrField):
 
 
 class DynamicStrField(Field):
-    def __init__(self, name, default, fmt="H", remain=0, adjust=lambda pkt, x: x):
+    # __slots__ = ["remain", "adjust"]
 
+    def __init__(self, name, default, fmt="H", remain=0, adjust=lambda pkt, x: (pkt, x)):
         super().__init__(name, default, fmt)
-
         self.remain = remain
-
         self.adjust = adjust
 
     def i2len(self, pkt, i):
@@ -75,12 +77,15 @@ class DynamicStrField(Field):
 
 
 class BLenField(LenField):
-    def __init__(self, name, default, fmt="I", adjust=lambda pkt, x: x, numbytes=None, length_of=None, count_of=None):
-        self.name = name
+
+    __slots__ = ["numbytes", "length_of", "count_of","adjust"]
+
+    def __init__(self, name, default, fmt="I", numbytes=None, length_of=None, count_of=None):
         self.adjust = adjust
         self.numbytes = numbytes
         self.length_of = length_of
         self.count_of = count_of
+
         super().__init__(name, default, fmt)
 
         if fmt[0] in "@=<>!":
@@ -93,7 +98,7 @@ class BLenField(LenField):
 
     def addfield(self, pkt, s, val):
         """Add an internal value  to a string"""
-        pack = struct.pack(self.fmt, self.i2m(pkt, val))
+        pack = struct.pack(self.fmt, self.i2m(pkt))
         if self.numbytes:
             pack = pack[len(pack)-self.numbytes:]
         return s+pack
@@ -101,7 +106,6 @@ class BLenField(LenField):
     def getfield(self, pkt, s):
         """Extract an internal value from a string"""
         upack_data = s[:self.sz]
-        # prepend struct.calcsize()-len(data) bytes to satisfy struct.unpack
         upack_data = '\x00'*(struct.calcsize(self.fmt)-self.sz) + upack_data
 
         return s[self.sz:], self.m2i(pkt, struct.unpack(self.fmt, upack_data)[0])
@@ -110,16 +114,16 @@ class BLenField(LenField):
         if x is None:
             if not (self.length_of or self.count_of):
                 x = len(pkt.payload)
-                x = self.adjust(pkt, x)
+                x = self.adjust(pkt)
                 return x
 
             if self.length_of is not None:
                 fld, fval = pkt.getfield_and_val(self.length_of)
-                f = fld.i2len(pkt, fval)
+                f = fld.i2len(pkt)
             else:
                 fld, fval = pkt.getfield_and_val(self.count_of)
-                f = fld.i2count(pkt, fval)
-            x = self.adjust(pkt, f)
+                f = fld.i2count(pkt)
+            x = self.adjust(pkt)
         return x
 
 
@@ -189,8 +193,7 @@ class SSHEncryptedPacket(Packet):
 class SSHMessage(Packet):
     name = "SSH Message"
     fields_desc = [
-        XBLenField("length", None, fmt="!I", adjust=lambda pkt,
-                   x: x+2 if pkt.lastlayer().haslayer(Raw) else x+2),
+        XBLenField("length", None, fmt="!I", adjust=lambda pkt, x: x+2 if pkt.lastlayer().haslayer(Raw) else x+2),
         XBLenField("padding_length", None, fmt="!B", adjust=lambda pkt, x: len(
             pkt.lastlayer()) if pkt.lastlayer().haslayer(Raw) else 0),
         ByteEnumField("type", 0xff, SSH_MESSAGE_TYPES),
@@ -199,7 +202,8 @@ class SSHMessage(Packet):
 
 class SSHKexInit(Packet):
     name = "SSH Key Exchange Init"
-    fields_desc = [StrFixedLenField("cookie", os.urandom(16), 16), ] \
+    fields_desc = [
+        StrFixedLenField("cookie", os.urandom(16), 16), ] \
         + ssh_name_list("kex_algorithms", default=",".join(SSH_ALGO_KEX)) \
         + ssh_name_list("server_host_key_algorithms", default=",".join(SSH_ALGO_HOSTKEY)) \
         + ssh_name_list("encryption_algorithms_client_to_server", default=",".join(SSH_ALGO_CIPHERS)) \
@@ -244,7 +248,7 @@ class SSHDisconnect(Packet):
             "language", "", terminator="\x00", consume_terminator=False),
     ]
 
-
+########################################################################################
 class SSH(Packet):
     name = "SSH"
 
@@ -266,7 +270,6 @@ class SSH(Packet):
         return SSHEncryptedPacket
 
 
-# bind magic
 bind_layers(TCP, SSH, dport=22)
 bind_layers(TCP, SSH, sport=22)
 
@@ -274,3 +277,4 @@ bind_layers(SSH, SSHMessage)
 bind_layers(SSHMessage, SSHKexInit, {'type': 0x14})
 bind_layers(SSHMessage, SSHDisconnect, {'type': 0x01})
 bind_layers(SSH, SSHEncryptedPacket)
+##############################################################################
