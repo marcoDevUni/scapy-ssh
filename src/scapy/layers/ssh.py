@@ -97,12 +97,14 @@ class BLenField(LenField):
             self.fmt = fmt
         else:
             self.fmt = "!"+fmt
+            
         self.default = self.any2i(None, default)
         self.sz = struct.calcsize(self.fmt) if not numbytes else numbytes
         self.owners = []
 
     def addfield(self, pkt, s, val):
         """Add an internal value  to a string"""
+        print(self.fmt)
         pack = struct.pack(self.fmt, self.i2m(pkt, val))
         if self.numbytes:
             pack = pack[len(pack)-self.numbytes:]
@@ -116,6 +118,7 @@ class BLenField(LenField):
 
         return s[self.sz:], self.m2i(pkt, struct.unpack(self.fmt, upack_data)[0])
 
+    # interno per macchina
     def i2m(self, pkt, x):
         if x is None:
             if not (self.length_of or self.count_of):
@@ -199,17 +202,16 @@ class SSHEncryptedPacket(Packet):
 class SSHMessage(Packet):
     name = "SSH Message"
     fields_desc = [
-        XBLenField("length", None, fmt="!I", adjust=lambda pkt,
-                   x: x+2 if pkt.lastlayer().haslayer(Raw) else x+2),
-        XBLenField("padding_length", None, fmt="!B", adjust=lambda pkt, x: len(
-            pkt.lastlayer()) if pkt.lastlayer().haslayer(Raw) else 0),
+        XBLenField("length", None, fmt="!I", adjust=lambda pkt, x: x+2 if pkt.lastlayer().haslayer(Raw) else x+2),
+        XBLenField("padding_length", None, fmt="!B", adjust=lambda pkt, x: len(pkt.lastlayer()) if pkt.lastlayer().haslayer(Raw) else 0),
         ByteEnumField("type", 0xff, SSH_MESSAGE_TYPES),
     ]
 
 
 class SSHKexInit(Packet):
     name = "SSH Key Exchange Init"
-    fields_desc = [StrFixedLenField("cookie", os.urandom(16), 16), ] \
+    fields_desc = [
+        StrFixedLenField("cookie", os.urandom(16), 16), ] \
         + ssh_name_list("kex_algorithms", default=",".join(SSH_ALGO_KEX)) \
         + ssh_name_list("server_host_key_algorithms", default=",".join(SSH_ALGO_HOSTKEY)) \
         + ssh_name_list("encryption_algorithms_client_to_server", default=",".join(SSH_ALGO_CIPHERS)) \
