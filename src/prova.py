@@ -12,10 +12,7 @@ def a():
 
 def b():
     # p = IP(dst="130.192.166.120")/TCP(dport=22)/SSH()/SSHIdent(ident="SSH-2.0-x\r\n")
-    p=IP(dst="130.192.166.120")/TCP(dport=22)/SSHMessage()/SSHKexInit(
-        languages_client_to_server="de,uk,de,uk", 
-        reserved=0) 
-        
+    p=IP(dst="130.192.166.120")/TCP(dport=22)/SSHMessage()    
     pkt, altro = sr(p)
     return SSH(pkt)
 

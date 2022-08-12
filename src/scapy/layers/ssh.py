@@ -104,7 +104,6 @@ class BLenField(LenField):
 
     def addfield(self, pkt, s, val):
         """Add an internal value  to a string"""
-        print(self.fmt)
         pack = struct.pack(self.fmt, self.i2m(pkt, val))
         if self.numbytes:
             pack = pack[len(pack)-self.numbytes:]
