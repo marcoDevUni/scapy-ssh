@@ -209,6 +209,7 @@ class SSHIdent(Packet):
     ]
 
 
+
 def ssh_calculate_mac(pkt, x):
     if len(x):
         return x
@@ -248,7 +249,6 @@ class SSHMessage(Packet):
         ),
         ByteEnumField("type", 0xFF, SSH_MESSAGE_TYPES),
     ]
-
 
 
 class SSHKexInit(Packet):
@@ -325,6 +325,14 @@ class SSH(Packet):
 
     def is_ascii(s):
         return all(ord(c) < 128 for c in s)
+
+
+    def answers(self, other):
+        print(other.__class__)
+        """DEV: true if self is an answer from other"""
+        if other.__class__ == self.__class__:
+            return self.payload.answers(other.payload)
+        return 0
 
     def guess_payload_class(self, payload):
 
