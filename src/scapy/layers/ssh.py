@@ -326,13 +326,8 @@ class SSH(Packet):
     def is_ascii(s):
         return all(ord(c) < 128 for c in s)
 
-
-    def answers(self, other):
-        print(other.__class__)
-        """DEV: true if self is an answer from other"""
-        if other.__class__ == self.__class__:
-            return self.payload.answers(other.payload)
-        return 0
+    def __str__(self):
+        return next(iter(self)).build()
 
     def guess_payload_class(self, payload):
 

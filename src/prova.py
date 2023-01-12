@@ -8,7 +8,18 @@ import ssh
 
 def a(myIP):
     p = IP(dst=myIP) / TCP(dport=22) / ssh.SSH() / ssh.SSHIdent(ident="SSH-2.0")
+    p.show()
     return sr(p)
+
+
+def TCPHandShake(myIP):
+    ip=IP(dst=myIP)
+    SYN=TCP(dport=22,flags='S',seq=1000)
+    SYNACK=sr1(ip/SYN)
+
+    # SYN-ACK
+    ACK=TCP(dport=22, flags='A', seq=SYNACK.ack + 1, ack=SYNACK.seq + 1)
+    return send(ip/ACK)
 
 
 # def b(myIP):
@@ -16,14 +27,8 @@ def a(myIP):
 #     p.show()
 #     return sr(p)
 
-myIP = "127.0.0.1"
-risposte, nonRisposte = a(myIP)
+myIP = "130.192.166.120"
+myIP = "192.168.1.13"
+risposte = TCPHandShake(myIP)
 
 print(risposte)
-for risposta in risposte:
-    ssh.SSH(risposta).show()
-
-
-print(nonRisposte)
-for risposta in nonRisposte:
-   ssh.SSH(risposta).show()

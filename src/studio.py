@@ -36,5 +36,5 @@ l1 = [
 
 index = 0
 for item in l1:
-    print(f"{index}- pre={item}, after={struct.unpack('!I', item)}")
+    print(f"{index}- pre={item}, after={struct.unpack('!B', item)}")
     index += 1
